@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>马拉松配速计算器</title>
+<style>
+  :root {
+    --primary: #E63946;
+    --primary-dark: #C1121F;
+    --bg: #1D1E22;
+    --card: #2A2B30;
+    --card-alt: #33343A;
+    --text: #F1FAEE;
+    --text-dim: #A8DADC;
+    --accent: #457B9D;
+    --gold: #F4A261;
+    --green: #2A9D8F;
+    --border: #3A3B40;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, 'Helvetica Neue', 'PingFang SC', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0 0 20px;
+  }
+
+  .header {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    padding: 22px 20px 24px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: -16px;
+    left: 0; right: 0;
+    height: 32px;
+    background: var(--bg);
+    border-radius: 50% 50% 0 0;
+  }
+  .header .icon { font-size: 32px; margin-bottom: 4px; }
+  .header h1 { font-size: 20px; font-weight: 700; letter-spacing: 1px; }
+  .header .brand { font-size: 11px; opacity: 0.7; margin-top: 4px; letter-spacing: 2px; }
+
+  .container { max-width: 480px; margin: 0 auto; padding: 0 12px; }
+
+  .card {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-top: 10px;
+    border: 1px solid var(--border);
+  }
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Race toggle */
+  .race-toggle { display: flex; gap: 8px; margin-bottom: 8px; }
+  .race-btn {
+    flex: 1;
+    padding: 10px 6px;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    background: var(--card-alt);
+    color: var(--text);
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .race-btn.active { border-color: var(--primary); background: rgba(230,57,70,0.15); }
+  .race-btn .dist { font-size: 20px; font-weight: 700; }
+  .race-btn .label { font-size: 11px; color: var(--text-dim); margin-top: 1px; }
+
+  /* Live time */
+  .live-time {
+    text-align: center;
+    padding: 6px;
+    background: var(--card-alt);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .live-time .time { font-size: 22px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+
+  /* Inputs */
+  .input-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .input-group { flex: 1; display: flex; flex-direction: column; }
+  .input-group label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+  .input-group input {
+    background: var(--card-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 10px;
+    color: var(--text);
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .input-group input:focus { border-color: var(--accent); }
+
+  /* Presets */
+  .section-desc { font-size: 11px; color: var(--text-dim); margin-bottom: 6px; }
+  .preset-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .preset-btn {
+    padding: 6px 12px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--card-alt);
+    color: var(--text);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .preset-btn:hover { border-color: var(--accent); }
+  .preset-btn.active { border-color: var(--gold); background: rgba(244,162,97,0.15); color: var(--gold); }
+
+  /* Results */
+  .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .result-item {
+    background: var(--card-alt);
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+  }
+  .result-item .r-label { font-size: 10px; color: var(--text-dim); margin-bottom: 2px; }
+  .result-item .r-value { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .result-item .r-unit { font-size: 11px; color: var(--text-dim); margin-left: 2px; }
+  .result-item.pace .r-value { color: var(--gold); }
+  .result-item.finish .r-value { color: var(--green); }
+  .result-item.elapsed .r-value { color: var(--accent); }
+  .result-item.remaining .r-value { color: var(--primary); }
+
+  /* Progress */
+  .progress-wrap {
+    margin-top: 8px;
+    background: var(--card-alt);
+    border-radius: 8px;
+    overflow: hidden;
+    height: 20px;
+    position: relative;
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--green));
+    border-radius: 8px;
+    transition: width 0.5s ease;
+  }
+  .progress-text {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .footer {
+    text-align: center;
+    margin-top: 12px;
+    font-size: 10px;
+    color: rgba(168,218,220,0.35);
+  }
+
+  @media (max-width: 360px) {
+    .result-item .r-value { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="icon">🏃‍♂️</div>
+  <h1>马拉松配速计算器</h1>
+  <div class="brand">同途跑团出品</div>
+</div>
+
+<div class="container">
+
+  <!-- Race Type -->
+  <div class="card">
+    <div class="card-title">🏁 选择项目</div>
+    <div class="race-toggle">
+      <div class="race-btn active" data-dist="21.0975" onclick="setRace(this)">
+        <div class="dist">21.0975</div>
+        <div class="label">半程马拉松</div>
+      </div>
+      <div class="race-btn" data-dist="42.195" onclick="setRace(this)">
+        <div class="dist">42.195</div>
+        <div class="label">全程马拉松</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Time & Point -->
+  <div class="card">
+    <div class="card-title">⏱️ 发枪时间 & 观赛位置</div>
+    <div class="live-time">
+      <span>当前时间</span>
+      <span class="time" id="liveTime">--:--:--</span>
+    </div>
+    <div class="input-row">
+      <div class="input-group">
+        <label>发枪时间</label>
+        <input type="time" id="startTime" value="07:30" onchange="calc()">
+      </div>
+      <div class="input-group">
+        <label>日期</label>
+        <input type="date" id="startDate" onchange="calc()">
+      </div>
+    </div>
+    <div class="section-desc">选择里程/观赛位置</div>
+    <div class="preset-row" id="kmPresets"></div>
+    <div class="input-row" style="margin-bottom:0">
+      <div class="input-group">
+        <label>自定义里程 (km)</label>
+        <input type="number" id="customKm" placeholder="输入公里数" step="0.1" min="0" oninput="onCustomKm()">
+      </div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="card results" id="resultCard">
+    <div class="card-title">📊 计算结果</div>
+    <div class="result-grid">
+      <div class="result-item elapsed">
+        <div class="r-label">已用时间</div>
+        <div class="r-value" id="elapsed">--:--:--</div>
+      </div>
+      <div class="result-item pace">
+        <div class="r-label">当前平均配速</div>
+        <div class="r-value" id="avgPace">--:--</div>
+        <div class="r-unit">min/km</div>
+      </div>
+      <div class="result-item finish">
+        <div class="r-label">预估完赛时间</div>
+        <div class="r-value" id="estFinish">--:--:--</div>
+      </div>
+      <div class="result-item remaining">
+        <div class="r-label">预计剩余用时</div>
+        <div class="r-value" id="estRemaining">--:--:--</div>
+      </div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-bar" id="progressBar" style="width:0%"></div>
+      <div class="progress-text" id="progressText">0%</div>
+    </div>
+  </div>
+
+  <div class="footer">同途跑团 · 为跑者而生</div>
+</div>
+
+<script>
+let raceDist = 21.0975;
+let selectedKm = null;
+
+document.getElementById('startDate').value = new Date().toISOString().slice(0, 10);
+
+function setRace(el) {
+  document.querySelectorAll('.race-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  raceDist = parseFloat(el.dataset.dist);
+  buildPresets();
+  selectedKm = null;
+  document.getElementById('customKm').value = '';
+  calc();
+}
+
+function buildPresets() {
+  const wrap = document.getElementById('kmPresets');
+  wrap.innerHTML = '';
+  const step = raceDist <= 21.0975 ? 5 : 10;
+  const end = Math.floor(raceDist / step) * step;
+  for (let km = step; km <= end; km += step) {
+    const btn = document.createElement('div');
+    btn.className = 'preset-btn';
+    btn.textContent = km + 'km';
+    btn.dataset.km = km;
+    btn.onclick = () => selectPreset(btn, km);
+    wrap.appendChild(btn);
+  }
+  const fin = document.createElement('div');
+  fin.className = 'preset-btn';
+  fin.textContent = '终点';
+  fin.dataset.km = raceDist;
+  fin.onclick = () => selectPreset(fin, raceDist);
+  wrap.appendChild(fin);
+}
+
+function selectPreset(btn, km) {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedKm = km;
+  document.getElementById('customKm').value = km;
+  calc();
+}
+
+function onCustomKm() {
+  const v = parseFloat(document.getElementById('customKm').value);
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    b.classList.toggle('active', parseFloat(b.dataset.km) === v);
+  });
+  selectedKm = isNaN(v) ? null : v;
+  calc();
+}
+
+function pad(n) { return String(n).padStart(2, '0'); }
+
+function formatTime(sec) {
+  if (sec < 0 || isNaN(sec)) return '--:--:--';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  return pad(h) + ':' + pad(m) + ':' + pad(s);
+}
+
+function formatPace(secPerKm) {
+  if (secPerKm <= 0 || isNaN(secPerKm) || !isFinite(secPerKm)) return '--:--';
+  const m = Math.floor(secPerKm / 60);
+  const s = Math.floor(secPerKm % 60);
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+function updateLiveTime() {
+  document.getElementById('liveTime').textContent = formatClock(new Date());
+}
+
+function formatClock(d) {
+  return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+}
+
+function getStartTime() {
+  const dateStr = document.getElementById('startDate').value;
+  const timeStr = document.getElementById('startTime').value;
+  return new Date(dateStr + 'T' + timeStr + ':00');
+}
+
+function calc() {
+  const now = new Date();
+  const start = getStartTime();
+  const elapsedSec = (now - start) / 1000;
+
+  document.getElementById('elapsed').textContent = formatTime(elapsedSec);
+
+  if (elapsedSec <= 0) {
+    document.getElementById('avgPace').textContent = '--:--';
+    document.getElementById('estFinish').textContent = '未开始';
+    document.getElementById('estRemaining').textContent = '--:--:--';
+    document.getElementById('progressBar').style.width = '0%';
+    document.getElementById('progressText').textContent = '0%';
+    return;
+  }
+
+  if (!selectedKm || selectedKm <= 0) {
+    document.getElementById('avgPace').textContent = '--:--';
+    document.getElementById('estFinish').textContent = '--:--:--';
+    document.getElementById('estRemaining').textContent = '--:--:--';
+    document.getElementById('progressBar').style.width = '0%';
+    document.getElementById('progressText').textContent = '请选择里程';
+    return;
+  }
+
+  const pacePerKm = elapsedSec / selectedKm;
+  const totalSec = pacePerKm * raceDist;
+  const remaining = totalSec - elapsedSec;
+  const pct = Math.min((selectedKm / raceDist) * 100, 100);
+
+  document.getElementById('avgPace').textContent = formatPace(pacePerKm);
+  document.getElementById('estFinish').textContent = formatTime(totalSec);
+  document.getElementById('estRemaining').textContent = remaining > 0 ? formatTime(remaining) : '00:00:00';
+  document.getElementById('progressBar').style.width = pct.toFixed(1) + '%';
+  document.getElementById('progressText').textContent = pct.toFixed(1) + '% · ' + selectedKm + '/' + raceDist + ' km';
+}
+
+buildPresets();
+selectedKm = null;
+updateLiveTime();
+setInterval(updateLiveTime, 1000);
+calc();
+setInterval(calc, 1000);
+</script>
+</body>
+</html>
